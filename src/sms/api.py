@@ -17,6 +17,15 @@ logger = logging.getLogger("app")
 # Create an instance of APIRouter with a prefix for the /sms endpoint and a tag for documentation purposes
 router = APIRouter(prefix="/sms", tags=["sms"])
 
+# AI Agent
+agent = Agent(
+    model=settings.AI_MODEL,
+    system_prompt="You are receiving this request from an API service where the main scope is to "
+    "response to customers incoming text messages (SMS) automatically "
+    "(like customer support). Be concise, reply with one simple and direct sentence.",
+    deps_type=SMSRequest,
+)
+
 
 @router.post(
     "/reply",
@@ -64,22 +73,6 @@ async def reply(request: Request, sms_request: SMSRequest = Depends(SMSRequest.f
 
         # Generate response through an AI model
         try:
-            # TODO: this is not ensuring "chat history".
-            #       for that we will need to have a stateful model on our side to ensure the following:
-            #       User SMS: How is the weather in Portugal today?
-            #       AI: I need to know a specific area of Portugal.
-            #       User SMS: Porto
-            #       AI: It’s a sunny day in Porto.
-            #       Otherwise, we are not replicating a real conversation.
-            #       For such implementation we will need to deploy a storage solution (e.g. Postgres, Redis)
-            #       to store the history of SMSs for each number and pass it to the model.
-            agent = Agent(
-                model=settings.AI_MODEL,
-                system_prompt="You are receiving this request from an API service where the main scope is to "
-                "response to customers incoming text messages (SMS) automatically "
-                "(like customer support). Be concise, reply with one simple and direct sentence.",
-                deps_type=SMSRequest,
-            )
             result = await agent.run(user_prompt=sms_request.body, deps=sms_request)
             response_message = result.data
         except (httpx.ConnectTimeout, exceptions.UnexpectedModelBehavior):
