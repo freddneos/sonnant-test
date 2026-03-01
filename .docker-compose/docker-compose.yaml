@@ -1,0 +1,54 @@
+version: '3.8'
+
+#-----------------------------------------------------------------------------------------------
+# Services
+#-----------------------------------------------------------------------------------------------
+services:
+
+  # Backend container
+  api:
+    restart: always
+    build:
+      context: ../
+      args:
+        - ENV_REQ=requirements-local.txt
+      dockerfile: Dockerfile
+    image: messaging-api
+    container_name: messaging-api_1
+    environment:
+      - GOOGLE_API_KEY=${GEMINI_API_KEY}
+      - TWILIO_AUTH_TOKEN=${MESSAGING_API_TWILIO_AUTH_TOKEN}
+      - TWILIO_WEBHOOKS_VALIDATION_ENABLED=False
+    volumes:
+      - ../:/app
+    ports:
+      - 9000:9000
+    command: .docker-compose/bootstrap-api.sh
+    networks:
+      - messaging-api-network
+
+  # Ngrok container
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: messaging-api-ngrok
+    restart: unless-stopped
+    environment:
+      - NGROK_AUTHTOKEN=${MESSAGING_API_NGROK_AUTHTOKEN}
+      - DOMAIN=${MESSAGING_API_NGROK_DOMAIN}
+    command:
+      - "start"
+      - "--all"
+      - "--config"
+      - "/etc/ngrok.yaml"
+    volumes:
+      - ./ngrok.yaml:/etc/ngrok.yaml
+    ports:
+      - 4040:4040
+    networks:
+      - messaging-api-network
+
+#-----------------------------------------------------------------------------------------------
+# Compose networks
+#-----------------------------------------------------------------------------------------------
+networks:
+  messaging-api-network:
