@@ -63,12 +63,11 @@ The API is available at `http://localhost:9000`. ngrok dashboard at `http://loca
 ## Run Tests
 
 ```bash
-make compose-test             # Run pytest inside Docker
-```
+# With Docker (no setup needed)
+make compose-test
 
-Or locally:
-
-```bash
+# Or locally (requires setup first)
+export GOOGLE_API_KEY=your_gemini_api_key
 pytest -vv
 ```
 
