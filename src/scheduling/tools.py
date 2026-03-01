@@ -4,7 +4,7 @@ from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
 
 from src.db.database import async_session_maker
-from src.db.models import Appointment, Barber
+from src.db.models import Appointment, Barber, CustomerPreference
 
 
 async def check_availability(date_str: str) -> str:
@@ -123,3 +123,29 @@ async def book_appointment(
         except IntegrityError:
             await session.rollback()
             return f"Sorry, that slot with {barber.name} is already taken."
+
+
+async def save_customer_preference(phone_number: str, preferred_cut: str) -> str:
+    async with async_session_maker() as session:
+        result = await session.execute(select(CustomerPreference).where(CustomerPreference.phone_number == phone_number))
+        existing = result.scalars().first()
+
+        if existing:
+            existing.preferred_cut = preferred_cut
+            existing.updated_at = datetime.utcnow()
+        else:
+            preference = CustomerPreference(phone_number=phone_number, preferred_cut=preferred_cut)
+            session.add(preference)
+
+        await session.commit()
+        return f"Got it! I'll remember you prefer a {preferred_cut}."
+
+
+async def get_customer_preference(phone_number: str) -> str:
+    async with async_session_maker() as session:
+        result = await session.execute(select(CustomerPreference).where(CustomerPreference.phone_number == phone_number))
+        preference = result.scalars().first()
+
+        if preference:
+            return f"You prefer: {preference.preferred_cut}"
+        return "No preference on file."
