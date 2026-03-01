@@ -5,7 +5,7 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
-from pydantic_ai import Agent, exceptions
+from pydantic_ai import Agent, RunContext, exceptions
 from twilio.request_validator import RequestValidator  # type: ignore
 
 from src.core.config import settings
@@ -56,23 +56,25 @@ agent = Agent(
 
 
 @agent.tool
-async def tool_check_availability(date: str) -> str:
+async def tool_check_availability(ctx: RunContext[SMSRequest], date: str) -> str:
     return await check_availability(date)
 
 
 @agent.tool
-async def tool_get_barbers() -> str:
+async def tool_get_barbers(ctx: RunContext[SMSRequest]) -> str:
     return await get_barbers()
 
 
 @agent.tool
-async def tool_book_appointment(ctx, barber_name: str, date: str, time: str, cut_type: str = None) -> str:
+async def tool_book_appointment(
+    ctx: RunContext[SMSRequest], barber_name: str, date: str, time: str, cut_type: str = None
+) -> str:
     customer_phone = ctx.deps.from_number
     return await book_appointment(barber_name, date, time, customer_phone, cut_type)
 
 
 @agent.tool
-async def tool_save_preference(ctx, preferred_cut: str) -> str:
+async def tool_save_preference(ctx: RunContext[SMSRequest], preferred_cut: str) -> str:
     customer_phone = ctx.deps.from_number
     return await save_customer_preference(customer_phone, preferred_cut)
 
