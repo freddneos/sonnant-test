@@ -1,5 +1,6 @@
 aiosqlite==0.20.0
 fastapi[standard]==0.123.4
+greenlet==3.1.1
 pydantic-ai==1.25.1
 pydantic-settings==2.12.0
 python-json-logger==3.2.1
