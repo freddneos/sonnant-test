@@ -9,6 +9,7 @@ from pydantic_ai import Agent, exceptions
 from twilio.request_validator import RequestValidator  # type: ignore
 
 from src.core.config import settings
+from src.scheduling.tools import get_conversation_history, get_customer_preference, save_message
 from src.sms.models import SMSRequest, SMSResponse
 
 # Instantiate logger
@@ -73,8 +74,18 @@ async def reply(request: Request, sms_request: SMSRequest = Depends(SMSRequest.f
 
         # Generate response through an AI model
         try:
-            result = await agent.run(user_prompt=sms_request.body, deps=sms_request)
+            history = await get_conversation_history(sms_request.from_number)
+            preference_result = await get_customer_preference(sms_request.from_number)
+
+            system_context = agent.system_prompt
+            if "No preference" not in preference_result:
+                system_context += f"\n\nCustomer info: {preference_result}"
+
+            result = await agent.run(user_prompt=sms_request.body, deps=sms_request, message_history=history)
             response_message = result.data
+
+            await save_message(sms_request.from_number, "user", sms_request.body)
+            await save_message(sms_request.from_number, "assistant", response_message)
         except (httpx.ConnectTimeout, exceptions.UnexpectedModelBehavior):
             logger.error("Connection error with Gemini", exc_info=True)
             response_message = "Ups! We were unable to respond to your request, please try again later :("

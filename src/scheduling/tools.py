@@ -4,7 +4,7 @@ from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
 
 from src.db.database import async_session_maker
-from src.db.models import Appointment, Barber, CustomerPreference
+from src.db.models import Appointment, Barber, ConversationMessage, CustomerPreference
 
 
 async def check_availability(date_str: str) -> str:
@@ -149,3 +149,22 @@ async def get_customer_preference(phone_number: str) -> str:
         if preference:
             return f"You prefer: {preference.preferred_cut}"
         return "No preference on file."
+
+
+async def save_message(phone_number: str, role: str, content: str):
+    async with async_session_maker() as session:
+        message = ConversationMessage(phone_number=phone_number, role=role, content=content)
+        session.add(message)
+        await session.commit()
+
+
+async def get_conversation_history(phone_number: str, limit: int = 10) -> list:
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(ConversationMessage)
+            .where(ConversationMessage.phone_number == phone_number)
+            .order_by(ConversationMessage.created_at.desc())
+            .limit(limit)
+        )
+        messages = result.scalars().all()
+        return [{"role": msg.role, "content": msg.content} for msg in reversed(messages)]
