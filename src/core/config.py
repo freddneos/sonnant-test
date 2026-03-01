@@ -64,10 +64,15 @@ class Settings(BaseSettings):
     # Twilio
     TWILIO_AUTH_TOKEN: Optional[str] = None
     TWILIO_WEBHOOKS_VALIDATION_ENABLED: bool = True
+    TWILIO_ACCOUNT_SID: Optional[str] = None
+    TWILIO_PHONE_NUMBER: Optional[str] = None
 
     # AI Model
     AI_MODEL: str = "google-gla:gemini-1.5-flash"
     GOOGLE_API_KEY: Optional[str] = None
+
+    # Reminders
+    REMINDER_DAYS: int = 90
 
 
 settings = Settings()  # type: ignore
