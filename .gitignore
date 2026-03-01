@@ -1,0 +1,27 @@
+.idea
+db.sqlite3
+barbershop.db
+logs
+*.pyc
+venv/
+.coverage
+htmlcov/
+uploads/
+node_modules/
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Ignore override files as they are usually used to override resources locally and so
+# are not checked in
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Local mypy
+.mypy_cache
+
+# Local pytest
+.pytest_cache
