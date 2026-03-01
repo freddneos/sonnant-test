@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM python:3.11.4-slim-buster
+FROM python:3.11-slim-bookworm
 
 # Running port
 ENV PORT 9000
