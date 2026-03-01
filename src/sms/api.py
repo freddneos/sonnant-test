@@ -9,7 +9,15 @@ from pydantic_ai import Agent, exceptions
 from twilio.request_validator import RequestValidator  # type: ignore
 
 from src.core.config import settings
-from src.scheduling.tools import get_conversation_history, get_customer_preference, save_message
+from src.scheduling.tools import (
+    book_appointment,
+    check_availability,
+    get_barbers,
+    get_conversation_history,
+    get_customer_preference,
+    save_customer_preference,
+    save_message,
+)
 from src.sms.models import SMSRequest, SMSResponse
 
 # Instantiate logger
@@ -18,14 +26,55 @@ logger = logging.getLogger("app")
 # Create an instance of APIRouter with a prefix for the /sms endpoint and a tag for documentation purposes
 router = APIRouter(prefix="/sms", tags=["sms"])
 
+BARBERSHOP_SYSTEM_PROMPT = """You are the SMS assistant for Fresh Cuts Barbershop.
+
+You help customers check barber availability, book appointments, and manage their preferences.
+
+Available tools:
+- check_availability: Check which barbers have open slots on a given date
+- get_barbers: List all barbers and their specialties
+- book_appointment: Book an appointment with a specific barber
+- save_customer_preference: Save a customer's preferred haircut style
+- get_customer_preference: Look up a customer's preferred haircut style
+
+Guidelines:
+- Be friendly and concise (SMS messages should be short)
+- When a customer asks about availability, use check_availability with the requested date
+- When booking, confirm the barber, date, time, and cut type before finalizing
+- After a successful booking, ask about their preferred cut if we don't have one on file
+- If a returning customer has a preference on file, mention it proactively
+- Working hours are generally 9 AM to 6 PM, slots are 30 minutes
+- If something goes wrong, apologize and suggest they try again
+"""
+
 # AI Agent
 agent = Agent(
     model=settings.AI_MODEL,
-    system_prompt="You are receiving this request from an API service where the main scope is to "
-    "response to customers incoming text messages (SMS) automatically "
-    "(like customer support). Be concise, reply with one simple and direct sentence.",
+    system_prompt=BARBERSHOP_SYSTEM_PROMPT,
     deps_type=SMSRequest,
 )
+
+
+@agent.tool
+async def tool_check_availability(date: str) -> str:
+    return await check_availability(date)
+
+
+@agent.tool
+async def tool_get_barbers() -> str:
+    return await get_barbers()
+
+
+@agent.tool
+async def tool_book_appointment(ctx, barber_name: str, date: str, time: str, cut_type: str = None) -> str:
+    customer_phone = ctx.deps.from_number
+    return await book_appointment(barber_name, date, time, customer_phone, cut_type)
+
+
+@agent.tool
+async def tool_save_preference(ctx, preferred_cut: str) -> str:
+    customer_phone = ctx.deps.from_number
+    return await save_customer_preference(customer_phone, preferred_cut)
 
 
 @router.post(
