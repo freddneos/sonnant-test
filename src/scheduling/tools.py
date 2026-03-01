@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import and_, select
+from sqlalchemy.exc import IntegrityError
 
 from src.db.database import async_session_maker
 from src.db.models import Appointment, Barber
@@ -67,3 +68,58 @@ async def get_barbers() -> str:
             barbers_text.append(f"{barber.name} - Specialties: {barber.specialties}")
 
         return "Our barbers:\n" + "\n".join(barbers_text)
+
+
+async def book_appointment(
+    barber_name: str, date_str: str, time_str: str, customer_phone: str, cut_type: str = None
+) -> str:
+    try:
+        target_date = datetime.fromisoformat(date_str).date()
+    except ValueError:
+        return "Invalid date format. Please use ISO format like '2024-03-15'."
+
+    try:
+        time_parts = time_str.split(":")
+        hour = int(time_parts[0])
+        minute = int(time_parts[1]) if len(time_parts) > 1 else 0
+        start_time = datetime.combine(target_date, datetime.min.time()).replace(hour=hour, minute=minute)
+    except (ValueError, IndexError):
+        return "Invalid time format. Please use format like '10:00' or '14:30'."
+
+    async with async_session_maker() as session:
+        result = await session.execute(select(Barber).where(Barber.name.ilike(barber_name)))
+        barber = result.scalars().first()
+
+        if not barber:
+            return f"Barber '{barber_name}' not found."
+
+        day_name = target_date.strftime("%a").lower()
+        if day_name not in barber.working_days:
+            return f"{barber.name} doesn't work on {target_date.strftime('%A')}s."
+
+        if start_time.hour < barber.start_hour or start_time.hour >= barber.end_hour:
+            return f"{barber.name} only works from {barber.start_hour}:00 to {barber.end_hour}:00."
+
+        existing = await session.execute(
+            select(Appointment).where(
+                and_(Appointment.barber_id == barber.id, Appointment.start_time == start_time)
+            )
+        )
+        if existing.scalars().first():
+            return f"Sorry, that slot with {barber.name} is already taken."
+
+        appointment = Appointment(
+            barber_id=barber.id,
+            customer_phone=customer_phone,
+            start_time=start_time,
+            cut_type=cut_type,
+            status="confirmed",
+        )
+        session.add(appointment)
+
+        try:
+            await session.commit()
+            return f"You're booked with {barber.name} on {target_date.strftime('%A, %B %d')} at {start_time.strftime('%I:%M %p')}!"
+        except IntegrityError:
+            await session.rollback()
+            return f"Sorry, that slot with {barber.name} is already taken."
