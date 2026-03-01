@@ -1,0 +1,9 @@
+version: 3
+agent:
+  log_level: debug
+  log: stdout
+tunnels:
+  api:
+    proto: http
+    addr: api:9000
+    domain: ${DOMAIN}
