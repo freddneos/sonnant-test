@@ -1,6 +1,19 @@
-# Messaging API
+# Barbershop SMS Scheduler
 
-A Python/FastAPI application for receiving SMS messages via Twilio webhooks and generating AI-powered responses using Google Gemini.
+An SMS-based agentic scheduling system for a barbershop, built with FastAPI, pydantic-ai, and Twilio.
+
+Customers can text the barbershop to check barber availability, book appointments, and save their preferred haircut style. The system remembers preferences and conversation context across messages.
+
+## Architecture
+
+```
+Customer SMS → Twilio → ngrok → FastAPI /sms/reply
+  → Load conversation history (SQLite)
+  → Load customer preferences
+  → pydantic-ai Agent (Gemini) with scheduling tools
+  → Agent calls tools: check_availability / book_appointment / save_preference
+  → Response → TwiML XML → Twilio → SMS back to customer
+```
 
 ## Requirements
 
@@ -57,6 +70,50 @@ Or locally:
 
 ```bash
 pytest -vv
+```
+
+## SMS Flow Example
+
+```
+Customer: "Can I get a haircut this week?"
+System:   Checks availability → "Carlos has openings Thursday at 10:00, 10:30, 14:00..."
+
+Customer: "Book me with Carlos at 10am Thursday"
+System:   Books appointment → "You're booked with Carlos on Thursday at 10:00 AM!"
+
+System:   "What type of cut would you like? (fade, buzz cut, classic...)"
+Customer: "I usually get a fade"
+System:   Saves preference → "Got it! I'll remember you prefer a fade."
+
+--- Next time ---
+Customer: "I need a haircut"
+System:   "Welcome back! Last time you got a fade. Want the same?"
+```
+
+## Design Decisions
+
+See [DESIGN.md](DESIGN.md) for architectural decisions and tradeoffs.
+
+## Project Structure
+
+```
+src/
+├── main.py              # FastAPI app, lifespan, routers
+├── core/
+│   └── config.py        # Settings (pydantic-settings)
+├── sms/
+│   ├── api.py           # POST /sms/reply webhook handler
+│   └── models.py        # SMSRequest/SMSResponse
+├── db/
+│   ├── database.py      # SQLAlchemy engine, session, init
+│   ├── models.py        # Barber, Appointment, Preference, Message
+│   └── seed.py          # Initial barber data
+├── scheduling/
+│   ├── tools.py         # Agent tools: availability, booking, preferences
+│   ├── reminders.py     # 90-day reminder background task
+│   └── api.py           # /reminders/check endpoint
+└── tests/
+    └── test_e2e_scheduling.py
 ```
 
 ## Available Commands
