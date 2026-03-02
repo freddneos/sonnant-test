@@ -70,6 +70,51 @@ make compose-run              # Start API + ngrok containers
 
 The API is available at `http://localhost:9000`. ngrok dashboard at `http://localhost:4040`.
 
+## Twilio Webhook Configuration
+
+After starting the containers, you need to configure Twilio to send incoming SMS messages to your ngrok URL.
+
+### 1. Get your ngrok URL
+
+Visit the ngrok dashboard at `http://localhost:4040` or check the container logs:
+
+```bash
+docker logs messaging-api-ngrok
+```
+
+Look for the forwarding URL (e.g., `https://your-domain.ngrok-free.app` or `https://abc123.ngrok-free.app`).
+
+### 2. Configure Twilio Phone Number
+
+1. Go to [Twilio Console > Phone Numbers](https://console.twilio.com/us1/develop/phone-numbers/manage/incoming/)
+2. Click on your phone number
+3. Scroll down to **Messaging Configuration**
+4. Under **"A MESSAGE COMES IN"**:
+   - Select: `Webhook`
+   - URL: `https://your-ngrok-url.ngrok-free.app/sms/reply`
+   - Method: `HTTP POST`
+5. Click **Save**
+
+**Example webhook URL:**
+```
+https://abc123.ngrok-free.app/sms/reply
+```
+
+### 3. Test the Integration
+
+Send an SMS to your Twilio phone number:
+
+```
+"Can I get a haircut this week?"
+```
+
+You should receive an AI-powered response with available slots!
+
+**Troubleshooting:**
+- Check logs: `docker logs messaging-api` for FastAPI logs
+- Check ngrok dashboard: `http://localhost:4040` to see incoming requests
+- Verify webhook validation is disabled for testing: `TWILIO_WEBHOOKS_VALIDATION_ENABLED=False` in docker-compose
+
 ## Run Tests
 
 ```bash
