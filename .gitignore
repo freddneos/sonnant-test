@@ -8,6 +8,7 @@ venv/
 htmlcov/
 uploads/
 node_modules/
+.env
 
 # Crash log files
 crash.log
@@ -25,3 +26,7 @@ override.tf.json
 
 # Local pytest
 .pytest_cache
+
+# Claude Code
+.claude/
+CLAUDE-INSTRUCTIONS.md
