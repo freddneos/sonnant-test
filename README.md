@@ -168,7 +168,7 @@ System:   "Welcome back! Last time you got a fade. Want the same?"
 
 ## Design Decisions
 
-See [DESIGN.md](DESIGN.md) for architectural decisions and tradeoffs.
+See [DESIGN.md](.docs/DESIGN.md) for architectural decisions and tradeoffs.
 
 ## Project Structure
 
@@ -195,3 +195,27 @@ src/
 ## Available Commands
 
 Run `make help` to see all available Makefile commands.
+
+---
+
+## Documentation
+
+### For Developers & Engineers
+
+This project includes detailed documentation of the development process, architectural decisions, and engineering approach:
+
+**[📖 Development Journey](.docs/DEVELOPMENT_JOURNEY.md)** - Complete walkthrough of:
+- Initial analysis and bug discovery (6 critical issues found and fixed)
+- Architecture design decisions with trade-offs (SQLite vs PostgreSQL, tools vs prompts)
+- Implementation strategy (debugging → design → build → test → document)
+- Engineering mindset and problem-solving approach
+- Estimated time investment: ~8-10 hours for production-ready system
+
+**[🏗️ Design Decisions](.docs/DESIGN.md)** - Architectural notes covering:
+- pydantic-ai for agent orchestration
+- SQLite for persistence (with Postgres migration path)
+- Tool-based architecture for deterministic actions
+- Conversation history and preference management
+- Production readiness considerations
+
+These documents demonstrate the thought process behind building an AI-powered system: how problems were identified, solutions were evaluated, and trade-offs were made. Perfect for technical reviewers who want to understand not just *what* was built, but *how* and *why*.
