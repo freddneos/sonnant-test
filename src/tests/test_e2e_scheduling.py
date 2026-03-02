@@ -71,8 +71,7 @@ async def test_happy_path_booking_flow(test_db):
     assert "text/xml" in response.headers["content-type"]
 
 
-@pytest.mark.asyncio
-async def test_multilingual_natural_language_requests(test_db):
+def test_multilingual_natural_language_requests():
     """Test that the system handles natural language date requests in multiple languages."""
     client = TestClient(app)
 
@@ -98,8 +97,7 @@ async def test_multilingual_natural_language_requests(test_db):
         assert "text/xml" in response.headers["content-type"]
 
 
-@pytest.mark.asyncio
-async def test_date_context_injection(test_db):
+def test_date_context_injection():
     """Test that current date context is injected into AI prompts."""
     client = TestClient(app)
 
