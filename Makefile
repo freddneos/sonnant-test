@@ -58,15 +58,15 @@ local-clean:  ## Clean the local environment
 #-----------------------------------------------------------------------------------------------
 .PHONY: compose-build
 compose-build:  ## Build Docker compose images
-	@docker-compose -f .docker-compose/docker-compose.yaml build --build-arg ENV_REQ=requirements-local.txt
+	@docker-compose -f .docker-compose/docker-compose.yaml --env-file .env build --build-arg ENV_REQ=requirements-local.txt
 
 .PHONY: compose-run
 compose-run:  ## Run Docker compose services
-	@docker-compose -f .docker-compose/docker-compose.yaml up -d
+	@docker-compose -f .docker-compose/docker-compose.yaml --env-file .env up -d
 
 .PHONY: compose-test
 compose-test:  ## Run tests
-	@docker-compose -f .docker-compose/docker-compose.yaml run api pytest -vv
+	@docker-compose -f .docker-compose/docker-compose.yaml --env-file .env run api pytest -vv
 
 # Default command to help
 .DEFAULT_GOAL := help

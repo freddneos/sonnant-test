@@ -6,4 +6,3 @@ tunnels:
   api:
     proto: http
     addr: api:9000
-    domain: ${DOMAIN}
