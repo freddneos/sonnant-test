@@ -25,23 +25,33 @@ Customer SMS → Twilio → ngrok → FastAPI /sms/reply
 
 ## Environment Setup
 
-Copy the example env file and fill in your credentials:
+**All environment variables are centralized in a single `.env` file** used by both Docker and local development.
 
 ```bash
 cp .env.example .env
-# Edit .env with your values
+# Edit .env with your real credentials
 ```
 
-Or export them in your shell:
+The `.env` file contains unified variables (no duplication):
 
 ```bash
-export MESSAGING_API_NGROK_AUTHTOKEN=your_token
-export MESSAGING_API_NGROK_DOMAIN=your-domain.ngrok-free.app
-export GEMINI_API_KEY=your_gemini_key
-export MESSAGING_API_TWILIO_AUTH_TOKEN=your_twilio_token
+# Ngrok (optional - only for custom domains)
+NGROK_AUTHTOKEN=your_ngrok_token
+
+# Google AI - Gemini API
+GOOGLE_API_KEY=AIzaSyBY...
+
+# Twilio
+TWILIO_AUTH_TOKEN=your_twilio_token
+TWILIO_ACCOUNT_SID=ACxxx
+TWILIO_PHONE_NUMBER=+15551234567
+
+# Application
+LOG_LEVEL=DEBUG
+LOG_FORMATTER=text
 ```
 
-**Note:** `GEMINI_API_KEY` is mapped to `GOOGLE_API_KEY` inside the container, which is what pydantic-ai reads.
+**No prefixes, no duplication** — one variable, one value, works everywhere.
 
 ## Local Development
 
@@ -63,28 +73,50 @@ The API is available at `http://localhost:9000`. ngrok dashboard at `http://loca
 ## Run Tests
 
 ```bash
-# With Docker (no setup needed)
+# With Docker (no setup needed, reads from .env)
 make compose-test
 
-# Or locally (requires setup first)
-export GOOGLE_API_KEY=your_gemini_api_key
+# Or locally (reads from .env automatically via pydantic-settings)
 pytest -vv
 ```
 
-## SMS Flow Example
+**Test Coverage:**
+- ✅ Happy path booking flow
+- ✅ Multilingual natural language requests (English, Portuguese, Spanish)
+- ✅ Date context injection (AI understands "today", "tomorrow", "this week")
+- ✅ Double booking prevention
+- ✅ Invalid date/barber handling
+- ✅ Conversation history persistence
+- ✅ Customer preference recall
 
+## SMS Flow Examples
+
+### English - Natural Language
 ```
 Customer: "Can I get a haircut this week?"
-System:   Checks availability → "Carlos has openings Thursday at 10:00, 10:30, 14:00..."
+System:   [AI proactively checks next 7 days]
+          "Carlos has openings Thursday at 10:00, 10:30, 14:00..."
 
 Customer: "Book me with Carlos at 10am Thursday"
-System:   Books appointment → "You're booked with Carlos on Thursday at 10:00 AM!"
+System:   "You're booked with Carlos on Thursday at 10:00 AM!"
+          "What type of cut would you like? (fade, buzz cut, classic...)"
 
-System:   "What type of cut would you like? (fade, buzz cut, classic...)"
 Customer: "I usually get a fade"
-System:   Saves preference → "Got it! I'll remember you prefer a fade."
+System:   "Got it! I'll remember you prefer a fade."
+```
 
---- Next time ---
+### Portuguese - Natural Language
+```
+Customer: "Quero cortar o cabelo hoje"
+System:   [AI recognizes "hoje" = today, checks today's availability]
+          "Carlos tem horários às 14:00, 15:30, 16:00..."
+
+Customer: "Marcar com Carlos às 14h"
+System:   "Agendado com Carlos para hoje às 14:00!"
+```
+
+### Returning Customer
+```
 Customer: "I need a haircut"
 System:   "Welcome back! Last time you got a fade. Want the same?"
 ```
