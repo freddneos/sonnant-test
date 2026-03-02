@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from http import HTTPStatus
 from typing import Any
 
@@ -30,21 +31,39 @@ BARBERSHOP_SYSTEM_PROMPT = """You are the SMS assistant for Fresh Cuts Barbersho
 
 You help customers check barber availability, book appointments, and manage their preferences.
 
+CRITICAL: You MUST be proactive and conversational. Do NOT ask customers for exact dates/times unless absolutely necessary.
+
 Available tools:
-- check_availability: Check which barbers have open slots on a given date
+- check_availability: Check which barbers have open slots on a given date (format: YYYY-MM-DD)
 - get_barbers: List all barbers and their specialties
 - book_appointment: Book an appointment with a specific barber
 - save_customer_preference: Save a customer's preferred haircut style
 - get_customer_preference: Look up a customer's preferred haircut style
 
+Date handling (CRITICAL):
+- Today's date is always available in your context
+- When customer says "today", "hoje", "hoy" → use TODAY's date
+- When customer says "tomorrow", "amanhã", "mañana" → use TOMORROW's date
+- When customer says "this week", "esta semana", "cette semaine" → check next 7 days starting from today
+- When customer says "next week", "próxima semana", "la semana que viene" → check dates 7-14 days from today
+- ALWAYS calculate the actual date and call check_availability with YYYY-MM-DD format
+- Support multilingual requests (English, Portuguese, Spanish, French, etc.)
+
+Proactive behavior:
+- When customer asks about availability for "this week", AUTOMATICALLY check today + next 6 days and show available slots
+- When customer asks for "today", IMMEDIATELY check today's availability without asking for confirmation
+- DO NOT ask "what date would you like?" - figure it out from context and check availability immediately
+- Be conversational: "Let me check what's available this week..." then call the tool
+
 Guidelines:
-- Be friendly and concise (SMS messages should be short)
-- When a customer asks about availability, use check_availability with the requested date
+- Be friendly, conversational, and concise (SMS messages should be short)
+- PROACTIVELY use tools to help the customer - don't make them specify exact dates
 - When booking, confirm the barber, date, time, and cut type before finalizing
 - After a successful booking, ask about their preferred cut if we don't have one on file
 - If a returning customer has a preference on file, mention it proactively
 - Working hours are generally 9 AM to 6 PM, slots are 30 minutes
 - If something goes wrong, apologize and suggest they try again
+- Support customers in any language they speak to you
 """
 
 # AI Agent
@@ -118,27 +137,41 @@ async def reply(request: Request, sms_request: SMSRequest = Depends(SMSRequest.f
         response_message = "Ups! I'm sorry, I can't process your request because your message looks bad! :("
     else:
         # Valid SMS request, build response
-        logger.debug(
-            f"Received SMS from {sms_request.from_number}: {sms_request.body}",
-            extra={"from": sms_request.from_number, "body": sms_request.body},
+        logger.info(
+            f"📱 INCOMING SMS | From: {sms_request.from_number} | Message: '{sms_request.body}'",
+            extra={"event": "sms_received", "from": sms_request.from_number, "body": sms_request.body},
         )
 
         # Generate response through an AI model
         try:
+            logger.info(f"🔍 Loading conversation history for {sms_request.from_number}")
             history = await get_conversation_history(sms_request.from_number)
-            preference_result = await get_customer_preference(sms_request.from_number)
+            logger.info(f"📝 Found {len(history)} previous messages in history")
 
-            system_context = agent.system_prompt
+            preference_result = await get_customer_preference(sms_request.from_number)
+            logger.info(f"💇 Customer preference: {preference_result}")
+
+            # Add current date context for the AI to understand "today", "tomorrow", etc.
+            today = datetime.now()
+            date_context = f"\n\nCURRENT DATE/TIME CONTEXT (use this to calculate dates):\n- Today is: {today.strftime('%Y-%m-%d')} ({today.strftime('%A, %B %d, %Y')})\n- Current time: {today.strftime('%H:%M')}"
+
+            system_context = BARBERSHOP_SYSTEM_PROMPT + date_context
             if "No preference" not in preference_result:
                 system_context += f"\n\nCustomer info: {preference_result}"
 
-            result = await agent.run(user_prompt=sms_request.body, deps=sms_request, message_history=history)
-            response_message = result.data
+            logger.info(f"🤖 Calling AI agent with model: {settings.AI_MODEL}")
+            result = await agent.run(
+                user_prompt=sms_request.body, deps=sms_request, message_history=history, system_prompt=system_context
+            )
+            response_message = result.output
+            logger.info(f"✅ AI Response: '{response_message}'")
 
+            logger.info("💾 Saving conversation to database")
             await save_message(sms_request.from_number, "user", sms_request.body)
             await save_message(sms_request.from_number, "assistant", response_message)
-        except (httpx.ConnectTimeout, exceptions.UnexpectedModelBehavior):
-            logger.error("Connection error with Gemini", exc_info=True)
+            logger.info("✅ Conversation saved successfully")
+        except (httpx.ConnectTimeout, exceptions.UnexpectedModelBehavior) as e:
+            logger.error(f"❌ AI MODEL ERROR: {type(e).__name__} - {str(e)}", exc_info=True)
             response_message = "Ups! We were unable to respond to your request, please try again later :("
 
     #

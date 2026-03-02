@@ -49,13 +49,18 @@ async def test_db():
     await engine.dispose()
 
 
-def test_happy_path_booking_flow(test_db):
+@pytest.mark.asyncio
+async def test_happy_path_booking_flow(test_db):
+    """Test that the system handles a basic booking request successfully."""
     client = TestClient(app)
 
     next_monday = datetime.now() + timedelta(days=(7 - datetime.now().weekday()))
     date_str = next_monday.strftime("%Y-%m-%d")
 
-    with patch("src.sms.api.agent.run", new=AsyncMock(return_value=AsyncMock(data="Checked availability"))) as mock_run:
+    # Mock AI agent to return availability check result with new 'output' attribute
+    with patch(
+        "src.sms.api.agent.run", new=AsyncMock(return_value=AsyncMock(output="Checked availability"))
+    ) as mock_run:
         with patch("src.core.config.settings.TWILIO_WEBHOOKS_VALIDATION_ENABLED", False):
             response = client.post(
                 "/sms/reply",
@@ -66,10 +71,60 @@ def test_happy_path_booking_flow(test_db):
     assert "text/xml" in response.headers["content-type"]
 
 
+@pytest.mark.asyncio
+async def test_multilingual_natural_language_requests(test_db):
+    """Test that the system handles natural language date requests in multiple languages."""
+    client = TestClient(app)
+
+    test_cases = [
+        ("Can I get a haircut this week?", "English - 'this week'"),
+        ("Quero cortar o cabelo hoje", "Portuguese - 'hoje' (today)"),
+        ("Necesito un corte mañana", "Spanish - 'mañana' (tomorrow)"),
+        ("Do you have slots today?", "English - 'today'"),
+        ("Tem horário essa semana?", "Portuguese - 'essa semana' (this week)"),
+    ]
+
+    for body, description in test_cases:
+        with patch(
+            "src.sms.api.agent.run", new=AsyncMock(return_value=AsyncMock(output=f"Available slots for {description}"))
+        ) as mock_run:
+            with patch("src.core.config.settings.TWILIO_WEBHOOKS_VALIDATION_ENABLED", False):
+                response = client.post(
+                    "/sms/reply",
+                    data={"From": "+1234567890", "Body": body},
+                )
+
+        assert response.status_code == HTTPStatus.OK, f"Failed for: {description}"
+        assert "text/xml" in response.headers["content-type"]
+
+
+@pytest.mark.asyncio
+async def test_date_context_injection(test_db):
+    """Test that current date context is injected into AI prompts."""
+    client = TestClient(app)
+
+    with patch(
+        "src.sms.api.agent.run", new=AsyncMock(return_value=AsyncMock(output="Availability checked"))
+    ) as mock_run:
+        with patch("src.core.config.settings.TWILIO_WEBHOOKS_VALIDATION_ENABLED", False):
+            response = client.post(
+                "/sms/reply",
+                data={"From": "+1234567890", "Body": "Can I book today?"},
+            )
+
+    assert response.status_code == HTTPStatus.OK
+    # Verify that agent.run was called with system_prompt containing date context
+    call_kwargs = mock_run.call_args.kwargs
+    assert "system_prompt" in call_kwargs
+    assert "CURRENT DATE/TIME CONTEXT" in call_kwargs["system_prompt"]
+    assert "Today is:" in call_kwargs["system_prompt"]
+
+
 # NOTE: Skip tests that use asyncio.run() - they create isolated event loops
 # that don't share the test_db fixture's session. These work in Docker with real DB.
 @pytest.mark.skip(reason="asyncio.run() creates isolated event loop - use Docker tests instead")
 def test_double_booking_prevention(test_db):
+    """Test that the system prevents double bookings for the same slot."""
     import asyncio
 
     from src.scheduling.tools import book_appointment
@@ -86,6 +141,7 @@ def test_double_booking_prevention(test_db):
 
 @pytest.mark.skip(reason="asyncio.run() creates isolated event loop - use Docker tests instead")
 def test_invalid_date_handling(test_db):
+    """Test that the system handles invalid date formats gracefully."""
     import asyncio
 
     from src.scheduling.tools import book_appointment
@@ -96,6 +152,7 @@ def test_invalid_date_handling(test_db):
 
 @pytest.mark.skip(reason="asyncio.run() creates isolated event loop - use Docker tests instead")
 def test_non_existent_barber(test_db):
+    """Test that the system handles requests for non-existent barbers."""
     import asyncio
 
     from src.scheduling.tools import book_appointment
@@ -107,11 +164,12 @@ def test_non_existent_barber(test_db):
     assert "not found" in result.lower()
 
 
-@pytest.mark.skip(reason="asyncio.run() creates isolated event loop - use Docker tests instead")
-def test_empty_body_handling(test_db):
+@pytest.mark.asyncio
+async def test_empty_body_handling(test_db):
+    """Test that the system handles empty message bodies gracefully."""
     client = TestClient(app)
 
-    with patch("src.sms.api.agent.run", new=AsyncMock(return_value=AsyncMock(data="Please send a message"))):
+    with patch("src.sms.api.agent.run", new=AsyncMock(return_value=AsyncMock(output="Please send a message"))):
         with patch("src.core.config.settings.TWILIO_WEBHOOKS_VALIDATION_ENABLED", False):
             response = client.post(
                 "/sms/reply",
@@ -123,6 +181,7 @@ def test_empty_body_handling(test_db):
 
 @pytest.mark.skip(reason="asyncio.run() creates isolated event loop - use Docker tests instead")
 def test_conversation_history_persistence(test_db):
+    """Test that conversation history is persisted across messages."""
     import asyncio
 
     from src.scheduling.tools import get_conversation_history, save_message

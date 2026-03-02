@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 
 from sqlalchemy import and_, select
@@ -6,14 +7,19 @@ from sqlalchemy.exc import IntegrityError
 from src.db.database import async_session_maker
 from src.db.models import Appointment, Barber, ConversationMessage, CustomerPreference
 
+logger = logging.getLogger("app")
+
 
 async def check_availability(date_str: str) -> str:
+    logger.info(f"🔧 TOOL: check_availability | Date: {date_str}")
     try:
         target_date = datetime.fromisoformat(date_str).date()
     except ValueError:
+        logger.warning(f"⚠️  Invalid date format received: {date_str}")
         return f"Invalid date format. Please use ISO format like '2024-03-15'."
 
     day_name = target_date.strftime("%a").lower()
+    logger.info(f"📅 Checking availability for {target_date} ({day_name})")
 
     async with async_session_maker() as session:
         result = await session.execute(select(Barber))
@@ -50,8 +56,10 @@ async def check_availability(date_str: str) -> str:
                 available_slots_text.append(f"{barber.name}: {slots_str}")
 
         if not available_slots_text:
+            logger.info(f"❌ No availability found for {target_date}")
             return f"No availability on {target_date.strftime('%Y-%m-%d')}."
 
+        logger.info(f"✅ Found availability: {len(available_slots_text)} barbers with open slots")
         return f"Available slots on {target_date.strftime('%Y-%m-%d')}:\n" + "\n".join(available_slots_text)
 
 
@@ -73,9 +81,13 @@ async def get_barbers() -> str:
 async def book_appointment(
     barber_name: str, date_str: str, time_str: str, customer_phone: str, cut_type: str = None
 ) -> str:
+    logger.info(
+        f"🔧 TOOL: book_appointment | Barber: {barber_name} | Date: {date_str} | Time: {time_str} | Customer: {customer_phone} | Cut: {cut_type}"
+    )
     try:
         target_date = datetime.fromisoformat(date_str).date()
     except ValueError:
+        logger.warning(f"⚠️  Invalid date format: {date_str}")
         return "Invalid date format. Please use ISO format like '2024-03-15'."
 
     try:
@@ -84,6 +96,7 @@ async def book_appointment(
         minute = int(time_parts[1]) if len(time_parts) > 1 else 0
         start_time = datetime.combine(target_date, datetime.min.time()).replace(hour=hour, minute=minute)
     except (ValueError, IndexError):
+        logger.warning(f"⚠️  Invalid time format: {time_str}")
         return "Invalid time format. Please use format like '10:00' or '14:30'."
 
     async with async_session_maker() as session:
@@ -101,9 +114,7 @@ async def book_appointment(
             return f"{barber.name} only works from {barber.start_hour}:00 to {barber.end_hour}:00."
 
         existing = await session.execute(
-            select(Appointment).where(
-                and_(Appointment.barber_id == barber.id, Appointment.start_time == start_time)
-            )
+            select(Appointment).where(and_(Appointment.barber_id == barber.id, Appointment.start_time == start_time))
         )
         if existing.scalars().first():
             return f"Sorry, that slot with {barber.name} is already taken."
@@ -119,15 +130,20 @@ async def book_appointment(
 
         try:
             await session.commit()
+            logger.info(f"✅ BOOKING SUCCESSFUL | {barber.name} | {start_time} | Customer: {customer_phone}")
             return f"You're booked with {barber.name} on {target_date.strftime('%A, %B %d')} at {start_time.strftime('%I:%M %p')}!"
         except IntegrityError:
             await session.rollback()
+            logger.warning(f"⚠️  BOOKING CONFLICT | Slot already taken: {barber.name} at {start_time}")
             return f"Sorry, that slot with {barber.name} is already taken."
 
 
 async def save_customer_preference(phone_number: str, preferred_cut: str) -> str:
+    logger.info(f"🔧 TOOL: save_customer_preference | Phone: {phone_number} | Cut: {preferred_cut}")
     async with async_session_maker() as session:
-        result = await session.execute(select(CustomerPreference).where(CustomerPreference.phone_number == phone_number))
+        result = await session.execute(
+            select(CustomerPreference).where(CustomerPreference.phone_number == phone_number)
+        )
         existing = result.scalars().first()
 
         if existing:
@@ -143,7 +159,9 @@ async def save_customer_preference(phone_number: str, preferred_cut: str) -> str
 
 async def get_customer_preference(phone_number: str) -> str:
     async with async_session_maker() as session:
-        result = await session.execute(select(CustomerPreference).where(CustomerPreference.phone_number == phone_number))
+        result = await session.execute(
+            select(CustomerPreference).where(CustomerPreference.phone_number == phone_number)
+        )
         preference = result.scalars().first()
 
         if preference:
