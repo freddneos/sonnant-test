@@ -17,6 +17,9 @@ class LogFormatter(str, Enum):
 class Settings(BaseSettings):
     """
     Application Settings
+
+    Loads from environment variables or .env file (for local development).
+    Uses pydantic-settings to automatically read from .env in project root.
     """
 
     APPLICATION_NAME: str = "MessagingApi"
@@ -24,6 +27,11 @@ class Settings(BaseSettings):
     # Logging settings
     LOG_LEVEL: str = "DEBUG"  # Default to DEBUG if not set
     LOG_FORMATTER: LogFormatter = LogFormatter.text  # Default to TEXT if not set
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        extra = "ignore"  # Ignore extra env vars like MESSAGING_API_* (used by docker-compose)
 
     # Define the logging configuration
     # TODO: add file handler?
@@ -68,7 +76,7 @@ class Settings(BaseSettings):
     TWILIO_PHONE_NUMBER: Optional[str] = None
 
     # AI Model
-    AI_MODEL: str = "google-gla:gemini-1.5-flash"
+    AI_MODEL: str = "gemini-2.5-flash"
     GOOGLE_API_KEY: Optional[str] = None
 
     # Reminders
